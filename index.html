@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Previsioni Windsurf</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f2f2f2;
+    }
+
+    .spot {
+      background: white;
+      padding: 15px;
+      margin-bottom: 30px;
+      border-radius: 10px;
+      overflow-x: auto;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    a {
+      display: inline-block;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>Previsioni Windsurf</h1>
+
+<div class="spot">
+  <h2>Vada</h2>
+
+  <script id="wg_fwdg_287_100">
+  (function (window, document) {
+    var loader = function () {
+      var arg = [
+        "s=287",
+        "m=100",
+        "uid=wg_fwdg_287_100",
+        "wj=knots",
+        "tj=c",
+        "waj=m",
+        "odh=0",
+        "doh=24",
+        "fhours=120",
+        "hrsm=3",
+        "vt=forecasts",
+        "lng=it",
+        "idbs=1",
+        "p=WINDSPD,GUST,SMER,TMP,CDC,APCP1s,RATING"
+      ];
+
+      var script = document.createElement("script");
+      var tag = document.getElementsByTagName("script")[0];
+      script.src = "https://www.windguru.cz/js/widget.php?" + arg.join("&");
+      tag.parentNode.insertBefore(script, tag);
+    };
+
+    window.addEventListener
+      ? window.addEventListener("load", loader, false)
+      : window.attachEvent("onload", loader);
+  })(window, document);
+  </script>
+
+  <a href="https://www.windguru.cz/287" target="_blank">
+    Apri Vada su Windguru
+  </a>
+</div>
+
+<div class="spot">
+  <h2>Talamone</h2>
+
+  <script id="wg_fwdg_123_100">
+  (function (window, document) {
+    var loader = function () {
+      var arg = [
+        "s=123",
+        "m=100",
+        "uid=wg_fwdg_123_100",
+        "wj=knots",
+        "tj=c",
+        "waj=m",
+        "odh=0",
+        "doh=24",
+        "fhours=120",
+        "hrsm=3",
+        "vt=forecasts",
+        "lng=it",
+        "idbs=1",
+        "p=WINDSPD,GUST,SMER,TMP,CDC,APCP1s,RATING"
+      ];
+
+      var script = document.createElement("script");
+      var tag = document.getElementsByTagName("script")[0];
+      script.src = "https://www.windguru.cz/js/widget.php?" + arg.join("&");
+      tag.parentNode.insertBefore(script, tag);
+    };
+
+    window.addEventListener
+      ? window.addEventListener("load", loader, false)
+      : window.attachEvent("onload", loader);
+  })(window, document);
+  </script>
+
+  <a href="https://www.windguru.cz/123" target="_blank">
+    Apri Talamone su Windguru
+  </a>
+</div>
+
+</body>
+</html>
