@@ -2,120 +2,324 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <title>Previsioni Windsurf</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f2f2f2;
-    }
-
-    .spot {
-      background: white;
-      padding: 15px;
-      margin-bottom: 30px;
-      border-radius: 10px;
-      overflow-x: auto;
-    }
-
-    h1 {
-      text-align: center;
-    }
-
-    a {
-      display: inline-block;
-      margin-top: 10px;
-    }
-  </style>
+  <title>WindDash — Spot Windsurf</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
-
 <body>
 
-<h1>Previsioni Windsurf</h1>
+  <!-- ═══════════════════════════════ HEADER ═══════════════════════════════ -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 12h14.5a2.5 2.5 0 1 0-2.5-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M4 7h9.5a2.5 2.5 0 1 0-2.5-2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <path d="M4 17h11.5a2.5 2.5 0 1 0-2.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>WindDash</h1>
+          <span class="brand-sub">Previsioni vento 16 giorni · Spot windsurf</span>
+        </div>
+      </div>
 
-<div class="spot">
-  <h2>
-  <a href="https://www.windguru.cz/287" target="_blank">
-    Livorno Tre Ponti
-  </a>
-  </h2>
+      <nav class="legend" aria-label="Legenda colori">
+        <div class="legend-item">
+          <span class="pip pip-red" aria-hidden="true"></span>
+          <span>≥ 3h &gt; 20 kn</span>
+        </div>
+        <div class="legend-item">
+          <span class="pip pip-yellow" aria-hidden="true"></span>
+          <span>≥ 3h &gt; 15 kn</span>
+        </div>
+        <div class="legend-item">
+          <span class="pip pip-calm" aria-hidden="true"></span>
+          <span>&lt; 15 kn</span>
+        </div>
+      </nav>
+    </div>
+  </header>
 
-  <script id="wg_fwdg_287_100">
-  (function (window, document) {
-    var loader = function () {
-      var arg = [
-        "s=287",
-        "m=100",
-        "uid=wg_fwdg_287_100",
-        "wj=knots",
-        "tj=c",
-        "waj=m",
-        "odh=0",
-        "doh=24",
-        "fhours=120",
-        "hrsm=3",
-        "vt=forecasts",
-        "lng=it",
-        "idbs=1",
-        "p=WINDSPD,GUST,SMER"
-      ];
+  <!-- ═══════════════════════════════ MAIN ═══════════════════════════════ -->
+  <main>
 
-      var script = document.createElement("script");
-      var tag = document.getElementsByTagName("script")[0];
-      script.src = "https://www.windguru.cz/js/widget.php?" + arg.join("&");
-      tag.parentNode.insertBefore(script, tag);
+    <!-- Loading -->
+    <div id="loading" class="center-panel" role="status" aria-live="polite">
+      <div class="loader-ring"></div>
+      <p>Caricamento previsioni in corso…</p>
+    </div>
+
+    <!-- Error -->
+    <div id="error-panel" class="center-panel error-panel hidden" role="alert">
+      <svg class="err-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <circle cx="12" cy="16" r=".5" fill="currentColor"/>
+      </svg>
+      <p id="error-msg">Si è verificato un errore.</p>
+      <button id="retry-btn" class="btn-retry">Riprova</button>
+    </div>
+
+    <!-- Dashboard -->
+    <section id="dashboard" class="dashboard hidden" aria-label="Tabella previsioni vento">
+      <div class="meta-bar">
+        <span id="last-update" class="meta-text"></span>
+        <span class="meta-text">Ore diurne: 08:00 – 20:00 locali · Vento a 10 m s.l.m.</span>
+      </div>
+      <p class="scroll-hint" id="scroll-hint" aria-hidden="true">← scorri per vedere tutti i giorni →</p>
+      <div class="table-wrap" id="table-wrap">
+        <table id="tbl" role="grid" aria-label="Previsioni vento per spot windsurf"></table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════ FOOTER ═══════════════════════════════ -->
+  <footer class="site-footer">
+    Dati meteo: <a href="https://open-meteo.com" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
+    &nbsp;·&nbsp; Spots: <a href="spots.json" target="_blank">spots.json</a>
+    &nbsp;·&nbsp; Aggiornamento automatico ad ogni apertura
+  </footer>
+
+  <!-- ═══════════════════════════════ SCRIPT ═══════════════════════════════ -->
+  <script>
+  'use strict';
+
+  // ── Configuration ──────────────────────────────────────────────────────────
+  const SPOTS_URL     = 'spots.json';
+  const API_BASE      = 'https://api.open-meteo.com/v1/forecast';
+  const FORECAST_DAYS = 16;
+  const HOUR_START    = 8;   // 08:00 inclusive
+  const HOUR_END      = 20;  // 20:00 exclusive
+
+  const DAYS_IT   = ['Dom','Lun','Mar','Mer','Gio','Ven','Sab'];
+  const MONTHS_IT = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+
+  // ── Tiny helpers ───────────────────────────────────────────────────────────
+  const $  = id => document.getElementById(id);
+  const el = (tag, attrs = {}, children = []) => {
+    const node = document.createElement(tag);
+    Object.entries(attrs).forEach(([k, v]) => {
+      if (k === 'className') node.className = v;
+      else if (k === 'innerHTML') node.innerHTML = v;
+      else if (k === 'textContent') node.textContent = v;
+      else node.setAttribute(k, v);
+    });
+    children.forEach(c => c && node.appendChild(c));
+    return node;
+  };
+
+  /** Returns "YYYY-MM-DD" in *local* time (matches API with timezone=auto) */
+  function localDateStr(d) {
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0'),
+    ].join('-');
+  }
+
+  function buildDates() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Array.from({ length: FORECAST_DAYS }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      return d;
+    });
+  }
+
+  function isToday(d)   { const n = new Date(); return localDateStr(d) === localDateStr(n); }
+  function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
+
+  // ── Open-Meteo fetch ───────────────────────────────────────────────────────
+  async function fetchWind(lat, lon) {
+    const url = new URL(API_BASE);
+    const params = {
+      latitude:        lat,
+      longitude:       lon,
+      hourly:          'wind_speed_10m',
+      wind_speed_unit: 'kn',
+      timezone:        'auto',
+      forecast_days:   FORECAST_DAYS,
     };
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`HTTP ${res.status} per (${lat}, ${lon})`);
+    return res.json();
+  }
 
-    window.addEventListener
-      ? window.addEventListener("load", loader, false)
-      : window.attachEvent("onload", loader);
-  })(window, document);
+  // ── Day classification ─────────────────────────────────────────────────────
+  /**
+   * Ritorna { level, cls, maxWind, above15, above20 }
+   * level: 0=calm, 1=yellow(>15kn), 2=red(>20kn)
+   */
+  function classifyDay(apiData, dateStr) {
+    const times = apiData.hourly.time;
+    const winds = apiData.hourly.wind_speed_10m;
+    let above20 = 0, above15 = 0, maxWind = 0;
+
+    for (let i = 0; i < times.length; i++) {
+      // Fast prefix match: "2026-05-05T08:00" → check date part
+      if (!times[i].startsWith(dateStr)) continue;
+      const hour = parseInt(times[i].slice(11, 13), 10);
+      if (hour >= HOUR_START && hour < HOUR_END) {
+        const w = winds[i] ?? 0;
+        if (w > maxWind) maxWind = w;
+        if (w > 20) above20++;
+        if (w > 15) above15++;
+      }
+    }
+
+    let level = 0;
+    if      (above20 >= 3) level = 2;
+    else if (above15 >= 3) level = 1;
+
+    const CSS_CLASSES = ['cell-calm', 'cell-yellow', 'cell-red'];
+    return { level, cls: CSS_CLASSES[level], maxWind: Math.round(maxWind), above15, above20 };
+  }
+
+  // ── Table builder ──────────────────────────────────────────────────────────
+  function buildTable(areas, spotResults, dates) {
+    const tbl   = $('tbl');
+    tbl.innerHTML = '';
+    const thead = tbl.createTHead();
+    const tbody = tbl.createTBody();
+
+    // ── Header row ────────────────────────────────────────────────────────
+    const hrow = thead.insertRow();
+
+    const thSpot = el('th', { className: 'th-spot sticky-col', scope: 'col', textContent: 'Spot' });
+    hrow.appendChild(thSpot);
+
+    dates.forEach(d => {
+      const todayCls   = isToday(d)   ? ' is-today'   : '';
+      const weekendCls = isWeekend(d) ? ' is-weekend' : '';
+      const th = el('th', {
+        scope:     'col',
+        className: `th-date${todayCls}${weekendCls}`,
+        innerHTML: `<span class="d-day">${DAYS_IT[d.getDay()]}</span><span class="d-date">${d.getDate()} ${MONTHS_IT[d.getMonth()]}</span>`,
+      });
+      hrow.appendChild(th);
+    });
+
+    // ── Body: areas → spots ───────────────────────────────────────────────
+    areas.forEach(area => {
+      // Area separator
+      const arow = tbody.insertRow();
+      arow.className = 'area-row';
+      const atd = arow.insertCell();
+      atd.colSpan  = dates.length + 1;
+      atd.className = 'area-cell';
+      atd.textContent = area.name;
+
+      area.spots.forEach(spot => {
+        const row = tbody.insertRow();
+        row.className = 'spot-row';
+
+        // Spot name (sticky)
+        const nameTd = row.insertCell();
+        nameTd.className = 'td-spot sticky-col';
+        nameTd.innerHTML = `<span class="spot-name" title="${spot.name}">${spot.name}</span>`;
+
+        const data = spotResults[spot._id];
+
+        dates.forEach(d => {
+          const td         = row.insertCell();
+          const todayCls   = isToday(d)   ? ' is-today'   : '';
+          const weekendCls = isWeekend(d) ? ' is-weekend' : '';
+
+          if (!data || data.error) {
+            td.className = `td-wind cell-err${todayCls}`;
+            td.textContent = '–';
+            return;
+          }
+
+          const ds   = localDateStr(d);
+          const info = classifyDay(data, ds);
+          const dateLabel = `${DAYS_IT[d.getDay()]} ${d.getDate()} ${MONTHS_IT[d.getMonth()]}`;
+
+          td.className = `td-wind ${info.cls}${todayCls}${weekendCls}`;
+          td.title = [
+            `${spot.name}  ·  ${dateLabel}`,
+            `─────────────────────`,
+            `Vento max: ${info.maxWind} kn`,
+            `Ore > 20 kn: ${info.above20}`,
+            `Ore > 15 kn: ${info.above15}`,
+          ].join('\n');
+
+          if (info.maxWind > 0) {
+            td.innerHTML = `<b>${info.maxWind}</b><small>kn</small>`;
+          } else {
+            td.innerHTML = `<span class="no-data">–</span>`;
+          }
+        });
+      });
+    });
+  }
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  async function init() {
+    $('loading').classList.remove('hidden');
+    $('error-panel').classList.add('hidden');
+    $('dashboard').classList.add('hidden');
+
+    try {
+      // 1. Load spots config
+      const spotsRes = await fetch(SPOTS_URL);
+      if (!spotsRes.ok) throw new Error('Impossibile caricare spots.json');
+      const config = await spotsRes.json();
+      const areas  = config.areas;
+
+      // Assign stable internal IDs
+      let uid = 0;
+      const allSpots = [];
+      areas.forEach(area => area.spots.forEach(s => { s._id = uid++; allSpots.push(s); }));
+
+      // 2. Fetch wind for all spots in parallel (errors isolated per-spot)
+      const spotResults = {};
+      await Promise.allSettled(
+        allSpots.map(async spot => {
+          try {
+            spotResults[spot._id] = await fetchWind(spot.lat, spot.lon);
+          } catch (e) {
+            console.warn(`Errore per ${spot.name}:`, e);
+            spotResults[spot._id] = { error: true };
+          }
+        })
+      );
+
+      // 3. Build table
+      const dates = buildDates();
+      buildTable(areas, spotResults, dates);
+
+      // 4. Update timestamp
+      const now = new Date();
+      $('last-update').textContent = `Aggiornato: ${now.toLocaleDateString('it-IT')} ${now.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`;
+
+      // 5. Show dashboard
+      $('loading').classList.add('hidden');
+      $('dashboard').classList.remove('hidden');
+
+      // Hide scroll hint after first scroll
+      $('table-wrap').addEventListener('scroll', () => {
+        $('scroll-hint').style.opacity = '0';
+      }, { once: true });
+
+    } catch (err) {
+      $('loading').classList.add('hidden');
+      $('error-msg').textContent = `Errore: ${err.message}`;
+      $('error-panel').classList.remove('hidden');
+      console.error(err);
+    }
+  }
+
+  $('retry-btn').addEventListener('click', init);
+  init();
   </script>
-
-</div>
-
-<div class="spot">
-  <h2>
-    <a href="https://www.windguru.cz/49002" target="_blank">
-    Vada
-  </a>
-  </h2>
-
-  <script id="wg_fwdg_49002_100">
-  (function (window, document) {
-    var loader = function () {
-      var arg = [
-        "s=49002",
-        "m=100",
-        "uid=wg_fwdg_49002_100",
-        "wj=knots",
-        "tj=c",
-        "waj=m",
-        "odh=0",
-        "doh=24",
-        "fhours=120",
-        "hrsm=3",
-        "vt=forecasts",
-        "lng=it",
-        "idbs=1",
-        "p=WINDSPD,GUST,SMER"
-      ];
-
-      var script = document.createElement("script");
-      var tag = document.getElementsByTagName("script")[0];
-      script.src = "https://www.windguru.cz/js/widget.php?" + arg.join("&");
-      tag.parentNode.insertBefore(script, tag);
-    };
-
-    window.addEventListener
-      ? window.addEventListener("load", loader, false)
-      : window.attachEvent("onload", loader);
-  })(window, document);
-  </script>
-
-</div>
-
 </body>
 </html>
