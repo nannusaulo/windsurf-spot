@@ -509,9 +509,9 @@ thead .sticky-col { z-index: 15; }
   .brand-icon    { width: 1.65rem; height: 1.65rem; }
   .brand-text h1 { font-size: 1.05rem; }
 
-  /* Legend: solo pip, niente testo */
-  .legend { gap: 0.9rem; }
-  .legend-item span:not(.pip) { display: none; }
+  /* Legend: pip + valori kn, font ridotto */
+   .legend { gap: 0.6rem; }
+   .legend-item { font-size: 0.62rem; }
 
   /* Meta bar */
   .meta-bar { flex-direction: column; align-items: flex-start; }
