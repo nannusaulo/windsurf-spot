@@ -409,8 +409,8 @@ thead .sticky-col { z-index: 15; }
 /* ── Wind direction arrow ────────────────────────────────────────────────── */
 .wind-arrow {
   display: block;
-  width: 16px;
-  height: 20px;
+  width: 13px;
+  height: 16px;
   margin: 0 auto;
   /* La rotazione è applicata inline via JS (transform: rotate(Xdeg)) */
   /* La transition rende più fluido un eventuale refresh dei dati */
