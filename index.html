@@ -137,15 +137,17 @@
   function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
 
   // ── Open-Meteo fetch ───────────────────────────────────────────────────────
+  // Richiediamo km/h (default API) e convertiamo in nodi lato client (÷ 1.852).
+  // Richiediamo anche la direzione del vento per visualizzare la freccia.
   async function fetchWind(lat, lon) {
     const url = new URL(API_BASE);
     const params = {
-      latitude:        lat,
-      longitude:       lon,
-      hourly:          'wind_speed_10m',
-      wind_speed_unit: 'kn',
-      timezone:        'auto',
-      forecast_days:   FORECAST_DAYS,
+      latitude:      lat,
+      longitude:     lon,
+      hourly:        'wind_speed_10m,wind_direction_10m',
+      timezone:      'auto',
+      forecast_days: FORECAST_DAYS,
+      // wind_speed_unit non specificato → km/h (default Open-Meteo)
     };
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url.toString());
@@ -155,23 +157,33 @@
 
   // ── Day classification ─────────────────────────────────────────────────────
   /**
-   * Ritorna { level, cls, maxWind, above15, above20 }
+   * Ritorna { level, cls, maxKn, peakDir, hasData, above15, above20 }
    * level: 0=calm, 1=yellow(>15kn), 2=red(>20kn)
+   * peakDir: direzione (°) nell'ora di vento massimo durante le ore diurne.
+   *          Convenzione: da dove VIENE il vento (0°=Nord, 90°=Est, …).
+   *          La freccia ruotata di peakDir° mostra la direzione di PROVENIENZA.
    */
   function classifyDay(apiData, dateStr) {
-    const times = apiData.hourly.time;
-    const winds = apiData.hourly.wind_speed_10m;
-    let above20 = 0, above15 = 0, maxWind = 0;
+    const times    = apiData.hourly.time;
+    const windsKmh = apiData.hourly.wind_speed_10m;     // km/h (default API)
+    const dirs     = apiData.hourly.wind_direction_10m; // gradi meteorologici
+
+    let above20 = 0, above15 = 0, maxKn = 0, peakDir = 0, hasData = false;
 
     for (let i = 0; i < times.length; i++) {
-      // Fast prefix match: "2026-05-05T08:00" → check date part
+      // Confronto prefisso stringa: "2026-05-05T08:00" → data parte
       if (!times[i].startsWith(dateStr)) continue;
       const hour = parseInt(times[i].slice(11, 13), 10);
       if (hour >= HOUR_START && hour < HOUR_END) {
-        const w = winds[i] ?? 0;
-        if (w > maxWind) maxWind = w;
-        if (w > 20) above20++;
-        if (w > 15) above15++;
+        hasData = true;
+        // Conversione km/h → nodi
+        const kn = (windsKmh[i] ?? 0) / 1.852;
+        if (kn > maxKn) {
+          maxKn   = kn;
+          peakDir = dirs[i] ?? 0;
+        }
+        if (kn > 20) above20++;
+        if (kn > 15) above15++;
       }
     }
 
@@ -180,7 +192,34 @@
     else if (above15 >= 3) level = 1;
 
     const CSS_CLASSES = ['cell-calm', 'cell-yellow', 'cell-red'];
-    return { level, cls: CSS_CLASSES[level], maxWind: Math.round(maxWind), above15, above20 };
+    return {
+      level,
+      cls: CSS_CLASSES[level],
+      maxKn:   Math.round(maxKn),
+      peakDir: Math.round(peakDir),
+      hasData,
+      above15,
+      above20,
+    };
+  }
+
+  /** Restituisce un SVG freccia che punta VERSO dove il vento si dirige (downwind).
+   *  Il vettore di default punta verso il basso (↓ = Sud).
+   *  Ruotando di windDir gradi si ottiene la direzione downwind corretta:
+   *    0° (da Nord)  → ↓ Sud   |  90° (da Est)  → ← Ovest
+   *  180° (da Sud)  → ↑ Nord  | 270° (da Ovest) → → Est
+   */
+  function arrowSVG(dir) {
+    return `<svg class="wind-arrow" viewBox="0 0 16 20"
+              xmlns="http://www.w3.org/2000/svg"
+              style="transform:rotate(${dir}deg)"
+              aria-hidden="true">
+      <line x1="8" y1="2" x2="8" y2="13"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <polyline points="3,10 8,16 13,10"
+                fill="none" stroke="currentColor"
+                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>`;
   }
 
   // ── Table builder ──────────────────────────────────────────────────────────
@@ -247,13 +286,14 @@
           td.title = [
             `${spot.name}  ·  ${dateLabel}`,
             `─────────────────────`,
-            `Vento max: ${info.maxWind} kn`,
+            `Vento max: ${info.maxKn} kn`,
+            `Direzione: ${info.peakDir}° (ora picco)`,
             `Ore > 20 kn: ${info.above20}`,
             `Ore > 15 kn: ${info.above15}`,
           ].join('\n');
 
-          if (info.maxWind > 0) {
-            td.innerHTML = `<b>${info.maxWind}</b><small>kn</small>`;
+          if (info.hasData) {
+            td.innerHTML = arrowSVG(info.peakDir);
           } else {
             td.innerHTML = `<span class="no-data">–</span>`;
           }
