@@ -137,23 +137,70 @@
   function isWeekend(d) { return d.getDay() === 0 || d.getDay() === 6; }
 
   // ── Open-Meteo fetch ───────────────────────────────────────────────────────
-  // Richiediamo km/h (default API) e convertiamo in nodi lato client (÷ 1.852).
-  // Richiediamo anche la direzione del vento per visualizzare la freccia.
-  async function fetchWind(lat, lon) {
+  // Strategia a tre livelli (per ogni spot, due chiamate in parallelo):
+  //   • Giorno 1-2  → AROME HD (meteofrance_arome_france_hd, ~1.3 km, 48 h)
+  //   • Giorno 3-10 → ECMWF IFS (via best_match)
+  //   • Giorno 11-16→ GFS o simile (via best_match, extended range)
+  // Il merge preferisce AROME dove disponibile (non null), altrimenti best_match.
+  // Unità: km/h (default API) → conversione in nodi avviene in classifyDay.
+
+  async function _apiFetch(lat, lon, model, days) {
     const url = new URL(API_BASE);
-    const params = {
+    Object.entries({
       latitude:      lat,
       longitude:     lon,
       hourly:        'wind_speed_10m,wind_direction_10m',
-      models:        'best_match',
+      models:        model,
       timezone:      'auto',
-      forecast_days: FORECAST_DAYS,
-      // wind_speed_unit non specificato → km/h (default Open-Meteo)
-    };
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+      forecast_days: days,
+    }).forEach(([k, v]) => url.searchParams.set(k, v));
     const res = await fetch(url.toString());
-    if (!res.ok) throw new Error(`HTTP ${res.status} per (${lat}, ${lon})`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} [${model}] per (${lat}, ${lon})`);
     return res.json();
+  }
+
+  async function fetchWind(lat, lon) {
+    // Le due chiamate partono in parallelo
+    const [aromeRes, bestRes] = await Promise.allSettled([
+      _apiFetch(lat, lon, 'meteofrance_arome_france_hd', 2),
+      _apiFetch(lat, lon, 'best_match', FORECAST_DAYS),
+    ]);
+
+    // best_match è obbligatorio: se fallisce propaghiamo l'errore
+    if (bestRes.status === 'rejected') throw bestRes.reason;
+    const best = bestRes.value;
+
+    // Se AROME non è disponibile restituiamo solo best_match
+    if (aromeRes.status === 'rejected') return best;
+    const arome = aromeRes.value;
+
+    // Merge: per ogni indice temporale di best_match, sostituiamo con AROME
+    // se l'ora esiste in AROME e il dato non è null.
+    const aromeIdx = new Map(
+      arome.hourly.time.map((t, i) => [t, i])
+    );
+    const mergedSpeed = best.hourly.wind_speed_10m.map((bVal, i) => {
+      const ai = aromeIdx.get(best.hourly.time[i]);
+      if (ai === undefined) return bVal;
+      const aVal = arome.hourly.wind_speed_10m[ai];
+      return aVal !== null ? aVal : bVal;
+    });
+    const mergedDir = best.hourly.wind_direction_10m.map((bVal, i) => {
+      const ai = aromeIdx.get(best.hourly.time[i]);
+      if (ai === undefined) return bVal;
+      const aVal = arome.hourly.wind_direction_10m[ai];
+      return aVal !== null ? aVal : bVal;
+    });
+
+    // Restituiamo la struttura identica a una risposta singola
+    return {
+      ...best,
+      hourly: {
+        time:                 best.hourly.time,
+        wind_speed_10m:       mergedSpeed,
+        wind_direction_10m:   mergedDir,
+      },
+    };
   }
 
   // ── Direction filter ──────────────────────────────────────────────────────
