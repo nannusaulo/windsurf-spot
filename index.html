@@ -145,6 +145,7 @@
       latitude:      lat,
       longitude:     lon,
       hourly:        'wind_speed_10m,wind_direction_10m',
+      models:        'best_match',
       timezone:      'auto',
       forecast_days: FORECAST_DAYS,
       // wind_speed_unit non specificato → km/h (default Open-Meteo)
@@ -155,15 +156,29 @@
     return res.json();
   }
 
+  // ── Direction filter ──────────────────────────────────────────────────────
+  /**
+   * Controlla se `dir` (gradi 0-360) rientra in almeno uno dei range in `windDirs`.
+   * Ogni range è [min, max]. Se min > max il range attraversa 0° (es. [350, 30]).
+   * Se windDirs è null/vuoto restituisce sempre true (nessun filtro).
+   */
+  function isDirOk(dir, windDirs) {
+    if (!windDirs || windDirs.length === 0) return true;
+    return windDirs.some(([min, max]) => {
+      if (min <= max) return dir >= min && dir <= max;
+      return dir >= min || dir <= max;   // wrap-around attraverso 0°
+    });
+  }
+
   // ── Day classification ─────────────────────────────────────────────────────
   /**
-   * Ritorna { level, cls, maxKn, peakDir, hasData, above15, above20 }
+   * Ritorna { level, cls, maxKn, peakDir, peakDirOk, hasData, above15, above20 }
    * level: 0=calm, 1=yellow(>15kn), 2=red(>20kn)
-   * peakDir: direzione (°) nell'ora di vento massimo durante le ore diurne.
-   *          Convenzione: da dove VIENE il vento (0°=Nord, 90°=Est, …).
-   *          La freccia ruotata di peakDir° mostra la direzione di PROVENIENZA.
+   * Le soglie above15/above20 contano solo ore con direzione valida per lo spot.
+   * maxKn e peakDir si riferiscono al picco assoluto (indipendente dalla direzione),
+   * utili per il tooltip; peakDirOk indica se quel picco era in direzione utile.
    */
-  function classifyDay(apiData, dateStr) {
+  function classifyDay(apiData, dateStr, windDirs) {
     const times    = apiData.hourly.time;
     const windsKmh = apiData.hourly.wind_speed_10m;     // km/h (default API)
     const dirs     = apiData.hourly.wind_direction_10m; // gradi meteorologici
@@ -171,19 +186,18 @@
     let above20 = 0, above15 = 0, maxKn = 0, peakDir = 0, hasData = false;
 
     for (let i = 0; i < times.length; i++) {
-      // Confronto prefisso stringa: "2026-05-05T08:00" → data parte
       if (!times[i].startsWith(dateStr)) continue;
       const hour = parseInt(times[i].slice(11, 13), 10);
       if (hour >= HOUR_START && hour < HOUR_END) {
         hasData = true;
-        // Conversione km/h → nodi
-        const kn = (windsKmh[i] ?? 0) / 1.852;
-        if (kn > maxKn) {
-          maxKn   = kn;
-          peakDir = dirs[i] ?? 0;
+        const kn  = (windsKmh[i] ?? 0) / 1.852;   // km/h → nodi
+        const dir = dirs[i] ?? 0;
+        if (kn > maxKn) { maxKn = kn; peakDir = dir; }
+        // Conta l'ora solo se la direzione è favorevole per questo spot
+        if (isDirOk(dir, windDirs)) {
+          if (kn > 20) above20++;
+          if (kn > 15) above15++;
         }
-        if (kn > 20) above20++;
-        if (kn > 15) above15++;
       }
     }
 
@@ -194,9 +208,10 @@
     const CSS_CLASSES = ['cell-calm', 'cell-yellow', 'cell-red'];
     return {
       level,
-      cls: CSS_CLASSES[level],
-      maxKn:   Math.round(maxKn),
-      peakDir: Math.round(peakDir),
+      cls:        CSS_CLASSES[level],
+      maxKn:      Math.round(maxKn),
+      peakDir:    Math.round(peakDir),
+      peakDirOk:  isDirOk(Math.round(peakDir), windDirs),
       hasData,
       above15,
       above20,
@@ -279,7 +294,7 @@
           }
 
           const ds   = localDateStr(d);
-          const info = classifyDay(data, ds);
+          const info = classifyDay(data, ds, spot.wind_dirs);
           const dateLabel = `${DAYS_IT[d.getDay()]} ${d.getDate()} ${MONTHS_IT[d.getMonth()]}`;
 
           td.className = `td-wind ${info.cls}${todayCls}${weekendCls}`;
@@ -287,9 +302,9 @@
             `${spot.name}  ·  ${dateLabel}`,
             `─────────────────────`,
             `Vento max: ${info.maxKn} kn`,
-            `Direzione: ${info.peakDir}° (ora picco)`,
-            `Ore > 20 kn: ${info.above20}`,
-            `Ore > 15 kn: ${info.above15}`,
+            `Direzione picco: ${info.peakDir}° ${info.peakDirOk ? '✓ favorevole' : '✗ non favorevole'}`,
+            `Ore >20 kn (dir. ok): ${info.above20}`,
+            `Ore >15 kn (dir. ok): ${info.above15}`,
           ].join('\n');
 
           if (info.hasData) {
