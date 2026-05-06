@@ -510,8 +510,8 @@ thead .sticky-col { z-index: 15; }
   .brand-text h1 { font-size: 1.05rem; }
 
   /* Legend: pip + valori kn, font ridotto */
-   .legend { gap: 0.6rem; }
-   .legend-item { font-size: 0.62rem; }
+  .legend { gap: 0.6rem; }
+  .legend-item { font-size: 0.62rem; }
 
   /* Meta bar */
   .meta-bar { flex-direction: column; align-items: flex-start; }
